@@ -18,7 +18,7 @@ import qualified Opaleye.Internal.HaskellDB.Sql as HSql
 import qualified Opaleye.Internal.HaskellDB.Sql.Print as HPrint
 
 import           Text.PrettyPrint.HughesPJ (Doc, ($$), (<+>), text, empty,
-                                            parens)
+                                            parens, doubleQuotes)
 import qualified Data.Char
 import qualified Data.List.NonEmpty as NEL
 import qualified Data.Text          as ST
@@ -85,14 +85,9 @@ ppSelectLabel l = text "/*" <+> text (preprocess (Sql.lLabel l)) <+> text "*/"
                    . ST.pack
 
 ppSelectExists :: Exists -> Doc
-ppSelectExists v =
-  text "SELECT *"
-  $$ text "FROM"
-  $$ ppTable (tableAlias 1 (pure (Sql.existsTable v)))
-  $$ case Sql.existsBool v of
-       True -> text "WHERE EXISTS"
-       False -> text "WHERE NOT EXISTS"
-  $$ parens (ppSql (Sql.existsCriteria v))
+ppSelectExists e =
+  text "SELECT EXISTS"
+  <+> ppTable (Sql.sqlSymbol (Sql.existsBinding e), pure (Sql.existsTable e))
 
 ppJoinType :: Sql.JoinType -> Doc
 ppJoinType Sql.LeftJoin = text "LEFT OUTER JOIN"

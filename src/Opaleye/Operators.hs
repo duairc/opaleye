@@ -11,22 +11,23 @@ module Opaleye.Operators (module Opaleye.Operators) where
 import qualified Control.Arrow as A
 import qualified Data.Foldable as F
 import qualified Data.List.NonEmpty as NEL
-
+import           Prelude hiding (not)
+import qualified Opaleye.Exists as E
 import qualified Opaleye.Field as F
 import           Opaleye.Internal.Column (Column(Column), unsafeCase_,
                                           unsafeIfThenElse, unsafeGt)
 import qualified Opaleye.Internal.Column as C
-import           Opaleye.Internal.QueryArr (QueryArr(QueryArr), Query, runSimpleQueryArr)
+import           Opaleye.Internal.QueryArr (QueryArr(QueryArr), Query,
+                                            runSimpleQueryArr, simpleQueryArr)
 import qualified Opaleye.Internal.PrimQuery as PQ
 import qualified Opaleye.Internal.Operators as O
 import           Opaleye.Internal.Helpers   ((.:))
+import           Opaleye.Lateral (laterally)
 import qualified Opaleye.Order as Ord
 import qualified Opaleye.Select   as S
 import qualified Opaleye.SqlTypes as T
 
 import qualified Opaleye.Column   as Column
-import qualified Opaleye.Distinct as Distinct
-import qualified Opaleye.Join     as Join
 
 import qualified Opaleye.Internal.HaskellDB.PrimQuery as HPQ
 
@@ -53,15 +54,11 @@ restrict = QueryArr f where
 
 {-| Add a @WHERE EXISTS@ clause to the current query. -}
 restrictExists :: S.SelectArr a b -> S.SelectArr a ()
-restrictExists criteria = QueryArr f where
-  f (a, primQ, t0) = ((), PQ.exists primQ existsQ, t1) where
-    (_, existsQ, t1) = runSimpleQueryArr criteria (a, t0)
+restrictExists q = restrict A.<<< laterally E.exists q
 
 {-| Add a @WHERE NOT EXISTS@ clause to the current query. -}
 restrictNotExists :: S.SelectArr a b -> S.SelectArr a ()
-restrictNotExists criteria = QueryArr f where
-  f (a, primQ, t0) = ((), PQ.notExists primQ existsQ, t1) where
-    (_, existsQ, t1) = runSimpleQueryArr criteria (a, t0)
+restrictNotExists q = restrict A.<<< not <$> laterally E.exists q
 
 {-| Keep only the rows of a query satisfying a given condition, using
 an SQL @WHERE@ clause.
@@ -215,32 +212,10 @@ in_ fcas (Column a) = Column $ case NEL.nonEmpty (F.toList fcas) of
 -- | True if the first argument occurs amongst the rows of the second,
 -- false otherwise.
 --
--- This operation is equivalent to Postgres's @IN@ operator but, for
--- expediency, is currently implemented using a @LEFT JOIN@.  Please
--- file a bug if this causes any issues in practice.
+-- This operation is equivalent to Postgres's @IN@ operator.
 inSelect :: D.Default O.EqPP fields fields
          => fields -> S.Select fields -> S.Select (F.Field T.SqlBool)
-inSelect c q = qj'
-  where -- Remove every row that isn't equal to c
-        -- Replace the ones that are with '1'
-        q' = A.arr (const 1)
-             A.<<< keepWhen (c .===)
-             A.<<< q
-
-        -- Left join with a query that has a single row
-        -- We either get a single row with '1'
-        -- or a single row with 'NULL'
-        qj :: Query (F.Field T.SqlInt4, Column (C.Nullable T.SqlInt4))
-        qj = Join.leftJoin (A.arr (const 1))
-                           (Distinct.distinct q')
-                           (uncurry (.==))
-
-        -- Check whether it is 'NULL'
-        qj' :: Query (F.Field T.SqlBool)
-        qj' = A.arr (Opaleye.Operators.not
-                     . Column.isNull
-                     . snd)
-              A.<<< qj
+inSelect c q = E.exists (keepWhen (c .===) A.<<< q)
 
 -- * JSON operators
 

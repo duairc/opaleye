@@ -45,7 +45,7 @@ removeEmpty = PQ.foldPrimQuery PQ.PrimQueryFold {
   , PQ.distinctOnOrderBy = \mDistinctOns -> fmap . PQ.DistinctOnOrderBy mDistinctOns
   , PQ.limit     = fmap . PQ.Limit
   , PQ.join      = \jt pe pes1 pes2 pq1 pq2 -> PQ.Join jt pe pes1 pes2 <$> pq1 <*> pq2
-  , PQ.existsf   = \b pq1 pq2 -> PQ.Exists b <$> pq1 <*> pq2
+  , PQ.existsf   = fmap . PQ.Exists
   , PQ.values    = return .: PQ.Values
   , PQ.binary    = \case
       -- Some unfortunate duplication here

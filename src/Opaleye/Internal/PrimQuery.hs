@@ -71,7 +71,7 @@ data PrimQuery' a = Unit
                               (Bindings HPQ.PrimExpr)
                               (PrimQuery' a)
                               (PrimQuery' a)
-                  | Exists    Bool (PrimQuery' a) (PrimQuery' a)
+                  | Exists    Symbol (PrimQuery' a)
                   | Values    [Symbol] (NEL.NonEmpty [HPQ.PrimExpr])
                   | Binary    BinOp
                               (PrimQuery' a, PrimQuery' a)
@@ -106,7 +106,7 @@ data PrimQueryFold' a p = PrimQueryFold
                       -> p
                       -> p
                       -> p
-  , existsf           :: Bool -> p -> p -> p
+  , existsf           :: Symbol -> p -> p
   , values            :: [Symbol] -> NEL.NonEmpty [HPQ.PrimExpr] -> p
   , binary            :: BinOp
                       -> (p, p)
@@ -151,7 +151,7 @@ foldPrimQuery f = fix fold
           Binary binop (q1, q2)       -> binary                f binop (self q1, self q2)
           Label l pq                  -> label             f l (self pq)
           RelExpr pe syms             -> relExpr           f pe syms
-          Exists b q1 q2              -> existsf           f b (self q1) (self q2)
+          Exists s q                  -> existsf           f s (self q)
           Rebind pes q                -> rebind            f pes (self q)
         fix g = let x = g x in x
 
@@ -160,12 +160,6 @@ times q q' = Product q [pure q'] []
 
 restrict :: HPQ.PrimExpr -> PrimQuery -> PrimQuery
 restrict cond primQ = Product primQ [] [cond]
-
-exists :: PrimQuery -> PrimQuery -> PrimQuery
-exists = Exists True
-
-notExists :: PrimQuery -> PrimQuery -> PrimQuery
-notExists = Exists False
 
 isUnit :: PrimQuery' a -> Bool
 isUnit Unit = True
